@@ -1,0 +1,17 @@
+const { cached, H6, FEC_KEY } = require("./_util");
+module.exports = async (req, res) => {
+  try {
+    const { cand = "", q = "", office = "H", state = "" } = req.query;
+    const data = await cached(`fec:${cand}:${q}:${office}:${state}`, H6, async () => {
+      let cid = cand;
+      if (!cid) {
+        const sr = await (await fetch(`https://api.open.fec.gov/v1/candidates/search/?api_key=${FEC_KEY()}&q=${encodeURIComponent(q)}&office=${office}&state=${state}&per_page=5`)).json();
+        cid = sr.results?.[0]?.candidate_id;
+      }
+      if (!cid) return { error: "no candidate ID found" };
+      const tr = await (await fetch(`https://api.open.fec.gov/v1/candidate/${cid}/totals/?api_key=${FEC_KEY()}&sort=-cycle&per_page=1`)).json();
+      return { candidate_id: cid, totals: tr.results?.[0] || null };
+    });
+    res.json(data);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+};
